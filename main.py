@@ -13,11 +13,12 @@ class LessonTimeApp(QWidget, Ui_Form):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_timer)
-        self.total_time = 9000
+        self.relax_time = 5
+        self.work_time = 20
         self.remaining_time = 20
         self.end_time = None
         self.is_running = False
-        self.ui.progressZone.setMaximum(self.total_time)
+        self.ui.progressZone.setMaximum(self.work_time + self.relax_time)
 
         self._setup_logic()
 
@@ -28,9 +29,10 @@ class LessonTimeApp(QWidget, Ui_Form):
     def _setup_logic(self):
         self.ui.startBtn.clicked.connect(self.startBtn)
         self.ui.pauseBtn.clicked.connect(self.pauseBtn)
+        self.ui.resetBtn.clicked.connect(self.resetBtn)
 
     def update_timer(self):
-        self.remaining_time = self.end_time - time.time()
+        self.remaining_time = int(self.end_time) - int(time.time())
 
         if int(self.remaining_time) <= 0:
             self.timer.stop()
@@ -43,6 +45,7 @@ class LessonTimeApp(QWidget, Ui_Form):
             minutes = int(self.remaining_time) // 60
             seconds = int(self.remaining_time) % 60
             self.ui.timerZone.setText(f"{minutes:02d}:{seconds:02d}")
+            self.ui.progressZone.setValue(abs(self.work_time - self.remaining_time))
 
     def startBtn(self):
         if not self.is_running:
@@ -51,8 +54,29 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.is_running = True
 
     def pauseBtn(self):
+        if self.is_running:
+            self.timer.stop()
+            self.is_running = False
+            self.ui.focusZone.setText(f"Пауза: {self.ui.focusZone.text()}")
+
+    def resetBtn(self):
         self.timer.stop()
         self.is_running = False
+        self.remaining_time = self.work_time
+        self.ui.progressZone.setValue(0)
+
+        # Оптимизировать этот костыль
+        minutes = int(self.remaining_time) // 60
+        seconds = int(self.remaining_time) % 60
+        self.ui.timerZone.setText(f"{minutes:02d}:{seconds:02d}")
+
+        if "Пауза: " in self.ui.focusZone.text():
+            self.ui.focusZone.setText(f"{self.ui.focusZone.text()[6:]}")
+
+        elif self.ui.focusZone.text() == "Сессия окончена":
+            self.ui.focusZone.setText("")  # Потом поменять на изначальный выбор фокуса
+
+        self.update()
 
 
 def main():
