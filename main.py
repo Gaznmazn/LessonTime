@@ -2,7 +2,7 @@ import sys
 import time
 
 from ui_lesson_time import Ui_Form
-from PyQt6.QtWidgets import QWidget, QApplication, QButtonGroup, QMessageBox
+from PyQt6.QtWidgets import QWidget, QApplication, QButtonGroup, QMessageBox, QMenu
 from PyQt6.QtCore import QTimer
 
 
@@ -10,6 +10,12 @@ class LessonTimeApp(QWidget, Ui_Form):
     def __init__(self):
         super().__init__()
         self._setup_ui()
+
+        self.activeTask = None
+        self.ui.taskList.setContextMenuPolicy(
+            self.ui.taskList.contextMenuPolicy().CustomContextMenu
+        )
+        self.ui.taskList.customContextMenuRequested.connect(self.showTaskMenu)
 
         self.mode_group = QButtonGroup(self)
         self.mode_group.setExclusive(True)  # Запрещает снимать выделение со всех кнопок
@@ -29,6 +35,7 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.ui.progressZone.setMaximum(self.work_time + self.relax_time)
 
         self._setup_logic()
+        self.timerView()
 
     def _setup_ui(self):
         self.ui = Ui_Form()
@@ -42,16 +49,21 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.ui.fourOneMode.clicked.connect(lambda: self.set_mode(1200, 300))
         self.ui.fiveOneMode.clicked.connect(lambda: self.set_mode(3000, 600))
 
+        self.ui.addBtnTask.clicked.connect(self.addTask)
+        self.ui.taskList.currentItemChanged.connect(self.selectTask)
+
+    def timerView(self):
+        minutes = int(self.remaining_time) // 60
+        seconds = int(self.remaining_time) % 60
+        self.ui.timerZone.setText(f"{minutes:02d}:{seconds:02d}")
+
     def timerRest(self):
         self.timer.start(1000)
         self.ui.focusZone.setText("Время отдыха")
 
-        minutes = int(self.relax_time) // 60
-        seconds = int(self.relax_time) % 60
-        self.ui.timerZone.setText(f"{minutes:02d}:{seconds:02d}")
-
         self.end_time += self.relax_time
         self.remaining_time = self.relax_time
+        self.timerView()
         self.is_resting = True
 
     def update_timer(self):
@@ -70,16 +82,14 @@ class LessonTimeApp(QWidget, Ui_Form):
                 self.ui.progressZone.setValue(self.relax_time + self.work_time)
 
         else:
-            minutes = int(self.remaining_time) // 60
-            seconds = int(self.remaining_time) % 60
-            self.ui.timerZone.setText(f"{minutes:02d}:{seconds:02d}")
+            self.timerView()
             if self.is_resting:
                 self.ui.progressZone.setValue(abs((self.relax_time + self.work_time) - self.remaining_time))
             else:
                 self.ui.progressZone.setValue(abs(self.work_time - self.remaining_time))
 
     def startBtn(self):
-        if not self.is_running:
+        if not self.is_running and self.activeTask:
             self.end_time = time.time() + self.remaining_time
             self.timer.start(1000)
             self.is_running = True
@@ -99,16 +109,13 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.remaining_time = self.work_time
         self.ui.progressZone.setValue(0)
 
-        # Оптимизировать этот костыль
-        minutes = int(self.remaining_time) // 60
-        seconds = int(self.remaining_time) % 60
-        self.ui.timerZone.setText(f"{minutes:02d}:{seconds:02d}")
+        self.timerView()
 
         if "Пауза: " in self.ui.focusZone.text():
             self.ui.focusZone.setText(f"{self.ui.focusZone.text()[6:]}")
 
         elif self.ui.focusZone.text() == "Сессия окончена":
-            self.ui.focusZone.setText("")  # Потом поменять на изначальный выбор фокуса
+            self.ui.focusZone.setText(self.activeTask)
 
         self.update()
 
@@ -128,6 +135,41 @@ class LessonTimeApp(QWidget, Ui_Form):
 
     def show_error(self, message):
         QMessageBox.critical(self, "Ошибка", message)
+
+    def addTask(self):
+        if self.ui.textTask.text().strip():
+            self.ui.taskList.addItem(self.ui.textTask.text().strip())
+            self.ui.textTask.setText("")
+
+    def selectTask(self, current):
+        if current:
+            self.ui.focusZone.setText(current.text())
+            self.activeTask = current.text()
+
+    def showTaskMenu(self, pos):
+        item = self.ui.taskList.itemAt(pos)
+        if item is None:
+            return
+
+        menu = QMenu(self)
+        deleteAction = menu.addAction("Удвлить")
+        action = menu.exec(self.ui.taskList.viewport().mapToGlobal(pos))
+
+        if action == deleteAction:
+            self.deleteTask()
+
+    def deleteTask(self):
+        current = self.ui.taskList.currentItem()
+        if current is None:
+            return
+
+        taskName = current.text()
+        row = self.ui.taskList.currentRow()
+        self.ui.taskList.takeItem(row)
+
+        if taskName == self.ui.focusZone.text():
+            self.ui.focusZone.setText("Задача не выбрана")
+            self.resetBtn()
 
 
 def main():
