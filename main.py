@@ -11,6 +11,7 @@ class LessonTimeApp(QWidget, Ui_Form):
         super().__init__()
         self._setup_ui()
 
+        self.ui.focusZone.setText("Задача не выбрана")
         self.activeTask = None
         self.ui.taskList.setContextMenuPolicy(
             self.ui.taskList.contextMenuPolicy().CustomContextMenu
@@ -18,7 +19,7 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.ui.taskList.customContextMenuRequested.connect(self.showTaskMenu)
 
         self.mode_group = QButtonGroup(self)
-        self.mode_group.setExclusive(True)  # Запрещает снимать выделение со всех кнопок
+        self.mode_group.setExclusive(True)
         self.mode_group.addButton(self.ui.fiveOneMode)
         self.mode_group.addButton(self.ui.fourOneMode)
 
@@ -50,7 +51,13 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.ui.fiveOneMode.clicked.connect(lambda: self.set_mode(3000, 600))
 
         self.ui.addBtnTask.clicked.connect(self.addTask)
+        self.ui.addBtnTask.setShortcut("Return")
         self.ui.taskList.currentItemChanged.connect(self.selectTask)
+
+    def setModeButton(self, enable: bool):
+        self.ui.fourOneMode.setEnabled(enable)
+        self.ui.fiveOneMode.setEnabled(enable)
+        self.ui.Custom.setEnabled(enable)
 
     def timerView(self):
         minutes = int(self.remaining_time) // 60
@@ -73,6 +80,7 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.timer.stop()
             self.remaining_time = 0
             self.is_running = False
+            self.setModeButton(True)
             self.ui.timerZone.setText(f"00:00")
 
             if not self.is_resting:
@@ -93,6 +101,7 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.end_time = time.time() + self.remaining_time
             self.timer.start(1000)
             self.is_running = True
+            self.setModeButton(False)
             if "Пауза: " in self.ui.focusZone.text():
                 self.ui.focusZone.setText(f"{self.ui.focusZone.text()[6:]}")
 
@@ -100,11 +109,13 @@ class LessonTimeApp(QWidget, Ui_Form):
         if self.is_running:
             self.timer.stop()
             self.is_running = False
+            self.setModeButton(True)
             self.ui.focusZone.setText(f"Пауза: {self.ui.focusZone.text()}")
 
     def resetBtn(self):
         self.timer.stop()
         self.is_running = False
+        self.setModeButton(True)
         self.is_resting = False
         self.remaining_time = self.work_time
         self.ui.progressZone.setValue(0)
@@ -128,13 +139,8 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.timer.stop()
             self.is_running = False
 
-        else:
-            self.show_error("Таймер запущен, пока что нельзя поменять время")
-
-        self.update()
-
-    def show_error(self, message):
-        QMessageBox.critical(self, "Ошибка", message)
+            self.timerView()
+            self.update()
 
     def addTask(self):
         if self.ui.textTask.text().strip():
