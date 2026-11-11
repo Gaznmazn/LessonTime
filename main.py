@@ -3,13 +3,15 @@ import time
 
 from ui_lesson_time import Ui_Form
 from PyQt6.QtWidgets import QWidget, QApplication, QButtonGroup, QMessageBox, QMenu
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, QSettings, QStringListModel
 
 
 class LessonTimeApp(QWidget, Ui_Form):
     def __init__(self):
         super().__init__()
         self._setup_ui()
+
+        self.settings = QSettings("LessonTime", "LessonSettings")
 
         self.ui.focusZone.setText("Задача не выбрана")
         self.activeTask = None
@@ -22,21 +24,21 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.mode_group.setExclusive(True)
         self.mode_group.addButton(self.ui.fiveOneMode)
         self.mode_group.addButton(self.ui.fourOneMode)
-
         self.ui.fourOneMode.setChecked(True)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_timer)
         self.relax_time = 300
-        self.is_resting = False
         self.work_time = 1200
-        self.remaining_time = 1200
+        self.remaining_time = self.work_time
         self.end_time = None
         self.is_running = False
+        self.is_resting = False
         self.ui.progressZone.setMaximum(self.work_time + self.relax_time)
 
+        self.load_data()
+
         self._setup_logic()
-        self.timerView()
 
     def _setup_ui(self):
         self.ui = Ui_Form()
@@ -52,7 +54,7 @@ class LessonTimeApp(QWidget, Ui_Form):
 
         self.ui.addBtnTask.clicked.connect(self.addTask)
         self.ui.addBtnTask.setShortcut("Return")
-        self.ui.taskList.currentItemChanged.connect(self.selectTask)
+        self.ui.taskList.itemClicked.connect(self.selectTask)
 
     def setModeButton(self, enable: bool):
         self.ui.fourOneMode.setEnabled(enable)
@@ -177,6 +179,40 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.ui.focusZone.setText("Задача не выбрана")
             self.resetBtn()
 
+    def load_data(self):
+        if self.settings.contains("TaskListMemory"):
+            for t in self.settings.value("TaskListMemory", [], type=list):
+                self.ui.taskList.addItem(t)
+        self.ui.taskList.clearSelection()
+        self.ui.taskList.setCurrentRow(-1)
+
+        if self.settings.contains("work_time"):
+            self.work_time = self.settings.value("work_time")
+            self.remaining_time = self.work_time
+        if self.settings.contains("relax_time"):
+            self.relax_time = self.settings.value("relax_time")
+
+        self.syncBtn()
+        self.timerView()
+
+    def syncBtn(self):
+        if (self.work_time, self.relax_time) == (20 * 60, 5 * 60):
+            self.ui.fourOneMode.setChecked(True)
+        elif (self.work_time, self.relax_time) == (50 * 60, 10 * 60):
+            self.ui.fiveOneMode.setChecked(True)
+        else:
+            self.ui.Custom.setChecked(True)
+        self.timerView()
+
+    def closeEvent(self, event):
+        tasks = [self.ui.taskList.item(i).text()
+                 for i in range(self.ui.taskList.count())]
+        self.settings.setValue("TaskListMemory", tasks)
+        self.settings.setValue("work_time", self.work_time)
+        self.settings.setValue("relax_time", self.relax_time)
+
+        event.close()
+
 
 def main():
     app = QApplication(sys.argv)
@@ -186,4 +222,6 @@ def main():
 
 
 if __name__ == '__main__':
+    # settings = QSettings("LessonTime", "LessonSettings")
+    # settings.clear()
     main()
