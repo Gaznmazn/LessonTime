@@ -1,9 +1,12 @@
 import sys
+import os
 import time
 
 from ui_lesson_time import Ui_Form
-from PyQt6.QtWidgets import QWidget, QApplication, QButtonGroup, QMessageBox, QMenu, QDialog, QHBoxLayout, QLabel, QSpinBox, QVBoxLayout, QPushButton
+from PyQt6.QtWidgets import (QWidget, QApplication, QButtonGroup, QMessageBox, QMenu, QDialog,
+                             QHBoxLayout, QLabel, QSpinBox, QVBoxLayout, QPushButton, QSystemTrayIcon)
 from PyQt6.QtCore import QTimer, QSettings, QStringListModel
+from PyQt6.QtGui import QIcon, QAction
 
 
 class LessonTimeApp(QWidget, Ui_Form):
@@ -38,12 +41,26 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.ui.progressZone.setMaximum(self.work_time + self.relax_time)
 
         self.load_data()
-
         self._setup_logic()
+        self._setup_tray()
+
+    def _setup_tray(self):
+        self.tray = QSystemTrayIcon(self)
+        self.main_menu = QMenu(self)
+
+        self.action_for_exit = QAction('Выход')
+        self.action_for_exit.triggered.connect(self._exit_from_tray)
+        self.main_menu.addAction(self.action_for_exit)
+
+        self.tray.setIcon(QIcon(os.path.join(os.path.dirname(__file__), 'images', "LessonTimeIcon.png")))
+        self.tray.setContextMenu(self.main_menu)
+        self.tray.activated.connect(self._on_tray_triggered)
+        self.tray.show()
 
     def _setup_ui(self):
         self.ui = Ui_Form()
         self.ui.setupUi(self)
+        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'images', "LessonTimeIcon.png")))
 
     def _setup_logic(self):
         self.ui.startBtn.clicked.connect(self.startBtn)
@@ -216,14 +233,24 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.ui.Custom.setChecked(True)
         self.timerView()
 
-    def closeEvent(self, event):
+    def _on_tray_triggered(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            if self.isHidden() or self.isMinimized():
+                self.show()
+                self.showNormal()
+                self.activateWindow()
+
+    def _exit_from_tray(self):
         tasks = [self.ui.taskList.item(i).text()
                  for i in range(self.ui.taskList.count())]
         self.settings.setValue("TaskListMemory", tasks)
         self.settings.setValue("work_time", self.work_time)
         self.settings.setValue("relax_time", self.relax_time)
+        QApplication.instance().quit()
 
-        event.close()
+    def closeEvent(self, event):
+        event.ignore()
+        self.hide()
 
 
 class CustomTimerDialog(QDialog):
@@ -259,6 +286,7 @@ class CustomTimerDialog(QDialog):
 
 def main():
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     window = LessonTimeApp()
     window.show()
     sys.exit(app.exec())
