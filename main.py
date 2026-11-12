@@ -2,7 +2,7 @@ import sys
 import time
 
 from ui_lesson_time import Ui_Form
-from PyQt6.QtWidgets import QWidget, QApplication, QButtonGroup, QMessageBox, QMenu
+from PyQt6.QtWidgets import QWidget, QApplication, QButtonGroup, QMessageBox, QMenu, QDialog, QHBoxLayout, QLabel, QSpinBox, QVBoxLayout, QPushButton
 from PyQt6.QtCore import QTimer, QSettings, QStringListModel
 
 
@@ -24,6 +24,7 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.mode_group.setExclusive(True)
         self.mode_group.addButton(self.ui.fiveOneMode)
         self.mode_group.addButton(self.ui.fourOneMode)
+        self.mode_group.addButton(self.ui.Custom)
         self.ui.fourOneMode.setChecked(True)
 
         self.timer = QTimer()
@@ -51,6 +52,7 @@ class LessonTimeApp(QWidget, Ui_Form):
 
         self.ui.fourOneMode.clicked.connect(lambda: self.set_mode(1200, 300))
         self.ui.fiveOneMode.clicked.connect(lambda: self.set_mode(3000, 600))
+        self.ui.Custom.clicked.connect(self.on_custom_clicked)
 
         self.ui.addBtnTask.clicked.connect(self.addTask)
         self.ui.addBtnTask.setShortcut("Return")
@@ -144,6 +146,16 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.timerView()
             self.update()
 
+    def on_custom_clicked(self):
+        dlg = CustomTimerDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.work_time = dlg.work_spin.value() * 60
+            self.relax_time = dlg.relax_spin.value() * 60
+            self.remaining_time = self.work_time
+
+            self.timerView()
+            self.ui.progressZone.setValue(0)
+
     def addTask(self):
         if self.ui.textTask.text().strip():
             self.ui.taskList.addItem(self.ui.textTask.text().strip())
@@ -212,6 +224,37 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.settings.setValue("relax_time", self.relax_time)
 
         event.close()
+
+
+class CustomTimerDialog(QDialog):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setWindowTitle("Настроить время")
+        self.setModal(True)
+        lay = QVBoxLayout(self)
+
+        r1 = QHBoxLayout()
+        r1.addWidget(QLabel("Работа (мин):"))
+        self.work_spin = QSpinBox()
+        self.work_spin.setRange(1, 60)
+        r1.addWidget(self.work_spin)
+        lay.addLayout(r1)
+
+        r2 = QHBoxLayout()
+        r2.addWidget(QLabel("Отдых (мин):"))
+        self.relax_spin = QSpinBox()
+        self.relax_spin.setRange(1, 60)
+        r2.addWidget(self.relax_spin)
+        lay.addLayout(r2)
+
+        btns = QHBoxLayout()
+        ok = QPushButton("Применить")
+        ok.clicked.connect(self.accept)
+        cancel = QPushButton("Отмена")
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(ok)
+        btns.addWidget(cancel)
+        lay.addLayout(btns)
 
 
 def main():
