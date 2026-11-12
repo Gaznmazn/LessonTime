@@ -5,8 +5,9 @@ import time
 from ui_lesson_time import Ui_Form
 from PyQt6.QtWidgets import (QWidget, QApplication, QButtonGroup, QMessageBox, QMenu, QDialog,
                              QHBoxLayout, QLabel, QSpinBox, QVBoxLayout, QPushButton, QSystemTrayIcon)
-from PyQt6.QtCore import QTimer, QSettings, QStringListModel
+from PyQt6.QtCore import QTimer, QSettings, QStringListModel, QUrl
 from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtMultimedia import QSoundEffect
 
 
 class LessonTimeApp(QWidget, Ui_Form):
@@ -39,6 +40,8 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.is_running = False
         self.is_resting = False
         self.ui.progressZone.setMaximum(self.work_time + self.relax_time)
+
+        self.sound = QSoundEffect()
 
         self.load_data()
         self._setup_logic()
@@ -87,6 +90,10 @@ class LessonTimeApp(QWidget, Ui_Form):
 
     def timerRest(self):
         self.timer.start(1000)
+        self.sound.setSource(QUrl.fromLocalFile("sounds/WorkIsDone.wav"))
+        self.sound.setVolume(0.8)
+        self.sound.play()
+
         self.ui.focusZone.setText("Время отдыха")
 
         self.end_time += self.relax_time
@@ -107,6 +114,10 @@ class LessonTimeApp(QWidget, Ui_Form):
             if not self.is_resting:
                 self.timerRest()
             else:
+                self.sound.setSource(QUrl.fromLocalFile("sounds/RestIsDone.wav"))
+                self.sound.setVolume(0.8)
+                self.sound.play()
+
                 self.ui.focusZone.setText("Сессия окончена")
                 self.ui.progressZone.setValue(self.relax_time + self.work_time)
 
