@@ -12,6 +12,11 @@ from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtMultimedia import QSoundEffect
 
 
+def rpath(rel):
+    base = getattr(sys, "_MEIPASS", os.path.dirname(__file__))
+    return os.path.join(base, rel)
+
+
 class LessonTimeApp(QWidget, Ui_Form):
     def __init__(self):
         super().__init__()
@@ -131,7 +136,7 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.action_for_exit.triggered.connect(self._exit_from_tray)
         self.main_menu.addAction(self.action_for_exit)
 
-        self.tray.setIcon(QIcon(os.path.join(os.path.dirname(__file__), 'images', "LessonTimeIcon.png")))
+        self.tray.setIcon(QIcon(rpath("Images/LessonTimeIcon.png")))
         self.tray.setContextMenu(self.main_menu)
         self.tray.activated.connect(self._on_tray_triggered)
         self.tray.show()
@@ -139,7 +144,7 @@ class LessonTimeApp(QWidget, Ui_Form):
     def _setup_ui(self):
         self.ui = Ui_Form()
         self.ui.setupUi(self)
-        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'images', "LessonTimeIcon.png")))
+        self.setWindowIcon(QIcon(rpath("Images/LessonTimeIcon.png")))
 
     def _setup_logic(self):
         self.ui.startBtn.clicked.connect(self.startBtn)
@@ -166,7 +171,7 @@ class LessonTimeApp(QWidget, Ui_Form):
 
     def timerRest(self):
         self.timer.start(1000)
-        self.sound.setSource(QUrl.fromLocalFile("sounds/WorkIsDone.wav"))
+        self.sound.setSource(QUrl.fromLocalFile(rpath("sounds/WorkIsDone.wav")))
         self.sound.setVolume(0.8)
         self.sound.play()
 
@@ -193,7 +198,7 @@ class LessonTimeApp(QWidget, Ui_Form):
                 self.timerRest()
 
             else:
-                self.sound.setSource(QUrl.fromLocalFile("sounds/RestIsDone.wav"))
+                self.sound.setSource(QUrl.fromLocalFile(rpath("sounds/RestIsDone.wav")))
                 self.sound.setVolume(0.8)
                 self.sound.play()
 
