@@ -1,3 +1,5 @@
+import datetime
+import calendar
 import sys
 import os
 import time
@@ -13,6 +15,7 @@ from PyQt6.QtMultimedia import QSoundEffect
 class LessonTimeApp(QWidget, Ui_Form):
     def __init__(self):
         super().__init__()
+        self.week_key = None
         self._setup_ui()
 
         self.settings = QSettings("LessonTime", "LessonSettings")
@@ -31,6 +34,14 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.mode_group.addButton(self.ui.Custom)
         self.ui.fourOneMode.setChecked(True)
 
+        self.todayTime = 0
+        self.streakTime = 0
+        self.sessionCount = 0
+        self.weekTime = 0
+        self.weekLog = []
+        self.weekStreak = []
+        self.last_day = None
+
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_timer)
         self.relax_time = 300
@@ -44,8 +55,73 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.sound = QSoundEffect()
 
         self.load_data()
+        self.upload_analyze()
         self._setup_logic()
         self._setup_tray()
+        self.refresh_analytics()
+
+    def upload_analyze(self):
+        self.todayTime = self.settings.value("todayTime", 0, type=int)
+        self.streakTime = self.settings.value("streakTime", 0, type=int)
+        self.last_day = self.settings.value("last_day", "", type=str)
+        self.sessionCount = self.settings.value("sessionCount", 0, type=int)
+        self.weekLog = self.settings.value("weekLog", [], type=list)
+        self.week_key = self.settings.value("week_key", "", type=str)
+
+        today = datetime.date.today()
+        iso = today.isocalendar()
+        cur_key = f"{iso[0]}-W{iso[1]:02d}"
+
+        if self.week_key != cur_key:
+            self.weekLog = []
+            self.week_key = cur_key
+
+        if self.last_day != today.isoformat():
+            if self.last_day and self.todayTime > 0:
+                y = datetime.date.fromisoformat(self.last_day).isocalendar()
+                if y[0] == iso[0] and y[1] == iso[1]:
+                    self.weekLog.append((self.last_day, self.todayTime))
+            self.todayTime = 0
+            self.sessionCount = 0
+
+    def refresh_analytics(self):
+        self.ui.todayStat.setText(f"{self.todayTime // 3600}h {(self.todayTime % 3600) // 60}m")
+        self.ui.streakStat.setText(f"{self.streakTime} days 🔥")
+        self.ui.sessionStat.setText(f"{self.sessionCount}")
+
+        self.weekTime = sum(s for _, s in self.weekLog) + self.todayTime
+        self.ui.weekStat.setText(f"{self.weekTime // 3600}h {(self.weekTime % 3600) // 60}m")
+
+        days = [date.fromisoformat(d) for d, _ in self.weekLog]
+        if self.todayTime > 0:
+            days.append(datetime.date.today())
+        self.weekStreak = sorted({d.weekday() for d in days})
+        self._paint_week_bars()
+
+    def _paint_week_bars(self):
+        bars = [self.ui.dayOne, self.ui.dayTwo, self.ui.dayThree,
+                self.ui.dayFour, self.ui.dayFive, self.ui.daySix,
+                self.ui.daySeven]
+        for i, bar in enumerate(bars):
+            active = i in self.weekStreak
+            bar.setStyleSheet(
+                "background-color:#4CAF50; border-radius:4px;"
+                if active else "background-color:#3E3E42; border-radius:4px;")
+
+    def _on_new_focus_day(self):
+        today = datetime.date.today()
+        if self.last_day:
+            last = date.fromisoformat(self.last_day)
+            gap = (today - last).days
+            if gap == 1:
+                self.streakTime += 1
+            elif gap > 1:
+                self.streakTime = 1
+        else:
+            self.streakTime = 1
+        self.last_day = today.isoformat()
+        self.save_data()
+        self.refresh_analytics()
 
     def _setup_tray(self):
         self.tray = QSystemTrayIcon(self)
@@ -95,6 +171,8 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.sound.play()
 
         self.ui.focusZone.setText("Время отдыха")
+        self.todayTime += 1
+        self.refresh_analytics()
 
         self.end_time += self.relax_time
         self.remaining_time = self.relax_time
@@ -113,6 +191,7 @@ class LessonTimeApp(QWidget, Ui_Form):
 
             if not self.is_resting:
                 self.timerRest()
+
             else:
                 self.sound.setSource(QUrl.fromLocalFile("sounds/RestIsDone.wav"))
                 self.sound.setVolume(0.8)
@@ -120,13 +199,22 @@ class LessonTimeApp(QWidget, Ui_Form):
 
                 self.ui.focusZone.setText("Сессия окончена")
                 self.ui.progressZone.setValue(self.relax_time + self.work_time)
+                self.ui.startBtn.setEnabled(False)
 
         else:
+            if not self.is_resting:
+                self.todayTime += 1
+                if self.todayTime == 1:
+                    self._on_new_focus_day()
+                self.refresh_analytics()
+
             self.timerView()
             if self.is_resting:
                 self.ui.progressZone.setValue(abs((self.relax_time + self.work_time) - self.remaining_time))
             else:
                 self.ui.progressZone.setValue(abs(self.work_time - self.remaining_time))
+
+            self.refresh_analytics()
 
     def startBtn(self):
         if not self.is_running and self.activeTask:
@@ -134,8 +222,14 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.timer.start(1000)
             self.is_running = True
             self.setModeButton(False)
+
+            self.sessionCount += 1
+            self.refresh_analytics()
+
             if "Пауза: " in self.ui.focusZone.text():
                 self.ui.focusZone.setText(f"{self.ui.focusZone.text()[6:]}")
+                self.sessionCount -= 1
+                self.refresh_analytics()
 
     def pauseBtn(self):
         if self.is_running:
@@ -159,6 +253,7 @@ class LessonTimeApp(QWidget, Ui_Form):
 
         elif self.ui.focusZone.text() == "Сессия окончена":
             self.ui.focusZone.setText(self.activeTask)
+            self.ui.startBtn.setEnabled(True)
 
         self.update()
 
@@ -180,6 +275,7 @@ class LessonTimeApp(QWidget, Ui_Form):
             self.work_time = dlg.work_spin.value() * 60
             self.relax_time = dlg.relax_spin.value() * 60
             self.remaining_time = self.work_time
+            self.ui.progressZone.setMaximum(self.work_time + self.relax_time)
 
             self.timerView()
             self.ui.progressZone.setValue(0)
@@ -232,6 +328,7 @@ class LessonTimeApp(QWidget, Ui_Form):
         if self.settings.contains("relax_time"):
             self.relax_time = self.settings.value("relax_time")
 
+        self.ui.progressZone.setMaximum(self.work_time + self.relax_time)
         self.syncBtn()
         self.timerView()
 
@@ -251,12 +348,21 @@ class LessonTimeApp(QWidget, Ui_Form):
                 self.showNormal()
                 self.activateWindow()
 
-    def _exit_from_tray(self):
+    def save_data(self):
         tasks = [self.ui.taskList.item(i).text()
                  for i in range(self.ui.taskList.count())]
         self.settings.setValue("TaskListMemory", tasks)
         self.settings.setValue("work_time", self.work_time)
         self.settings.setValue("relax_time", self.relax_time)
+        self.settings.setValue("todayTime", self.todayTime)
+        self.settings.setValue("streakTime", self.streakTime)
+        self.settings.setValue("last_day", self.last_day or "")
+        self.settings.setValue("sessionCount", self.sessionCount)
+        self.settings.setValue("week_key", self.week_key)
+        self.settings.setValue("weekLog", self.weekLog)
+
+    def _exit_from_tray(self):
+        self.save_data()
         QApplication.instance().quit()
 
     def closeEvent(self, event):
@@ -304,6 +410,4 @@ def main():
 
 
 if __name__ == '__main__':
-    # settings = QSettings("LessonTime", "LessonSettings")
-    # settings.clear()
     main()
