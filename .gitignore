@@ -1,7 +1,10 @@
 # Виртуальное окружение
+build/
+dist/
 venv/
 .venv/
 env/
+LessonTime.spec
 
 # Кэш Python
 __pycache__/

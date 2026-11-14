@@ -97,7 +97,7 @@ class LessonTimeApp(QWidget, Ui_Form):
         self.weekTime = sum(s for _, s in self.weekLog) + self.todayTime
         self.ui.weekStat.setText(f"{self.weekTime // 3600}h {(self.weekTime % 3600) // 60}m")
 
-        days = [date.fromisoformat(d) for d, _ in self.weekLog]
+        days = [datetime.date.fromisoformat(d) for d, _ in self.weekLog]
         if self.todayTime > 0:
             days.append(datetime.date.today())
         self.weekStreak = sorted({d.weekday() for d in days})
@@ -116,7 +116,7 @@ class LessonTimeApp(QWidget, Ui_Form):
     def _on_new_focus_day(self):
         today = datetime.date.today()
         if self.last_day:
-            last = date.fromisoformat(self.last_day)
+            last = datetime.date.fromisoformat(self.last_day)
             gap = (today - last).days
             if gap == 1:
                 self.streakTime += 1
